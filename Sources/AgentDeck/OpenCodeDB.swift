@@ -68,6 +68,9 @@ enum OpenCodeDB {
         let branch: String?
         let timeCreated: Date
         let timeUpdated: Date
+        /// SubAgent セッションの親 (opencode V2 の session_v2.parent_id)。
+        /// ボード上では親カードに内包して折りたたみ表示する。
+        let parentID: String?
     }
 
     // MARK: sessions
@@ -76,7 +79,19 @@ enum OpenCodeDB {
     /// every candidate store, merging by session id (newest `time_updated`
     /// wins, non-nil title preferred on ties). `body` runs per session in one
     /// dispatch, newest activity first.
-    static func scan(since: Date, body: (SessionRow, String?, String?) -> Void) {
+    ///
+    /// `known` maps session id → last seen `time_updated`. Sessions whose
+    /// `time_updated` hasn't advanced are skipped for the per-session message
+    /// queries (2 prepared statements + JSON parses each) — they keep their
+    /// first/last text in the board from the previous scan. This keeps the
+    /// steady-state cost proportional to newly written sessions instead of
+    /// the whole 7-day window on every DB write.
+    ///
+    /// `deepSince`: only sessions updated at/after this date get the
+    /// first/last message queries. Older sessions (the board only shows the
+    /// last 2 days) keep their DB title and skip the JSON parsing — this is
+    /// what makes the startup scan cheap after a week of sessions.
+    static func scan(since: Date, known: [String: Date] = [:], deepSince: Date? = nil, body: (SessionRow, String?, String?) -> Void) {
         struct Merged {
             var row: SessionRow
             var first: String?
@@ -86,7 +101,7 @@ enum OpenCodeDB {
         for name in dbCandidates {
             let path = dbDir + name
             guard FileManager.default.fileExists(atPath: path) else { continue }
-            scanFile(path: path, since: since) { row, first, last in
+            scanFile(path: path, since: since, known: known, deepSince: deepSince) { row, first, last in
                 if let existing = merged[row.id] {
                     if existing.row.timeUpdated > row.timeUpdated { return }
                     if existing.row.timeUpdated == row.timeUpdated,
@@ -100,14 +115,14 @@ enum OpenCodeDB {
         }
     }
 
-    private static func scanFile(path: String, since: Date, body: (SessionRow, String?, String?) -> Void) {
+    private static func scanFile(path: String, since: Date, known: [String: Date], deepSince: Date?, body: (SessionRow, String?, String?) -> Void) {
         guard let db = open(path: path) else { return }
         defer { sqlite3_close(db) }
         let p = probe(db)
         let join = p.hasBranch ? "LEFT JOIN workspace w ON s.workspace_id = w.id" : ""
         let branchSel = p.hasBranch ? "w.branch" : "NULL"
         let sessionsSQL = """
-            SELECT s.id, s.title, s.directory, \(branchSel), s.time_created, s.time_updated
+            SELECT s.id, s.title, s.directory, \(branchSel), s.parent_id, s.time_created, s.time_updated
             FROM \(p.session) s \(join)
             WHERE s.time_archived IS NULL AND s.time_updated >= ?
             ORDER BY s.time_updated DESC LIMIT 200
@@ -138,12 +153,20 @@ enum OpenCodeDB {
                 title: col(sStmt, 1),
                 directory: col(sStmt, 2) ?? "",
                 branch: col(sStmt, 3),
-                timeCreated: Date(timeIntervalSince1970: sqlite3_column_double(sStmt, 4) / 1000),
-                timeUpdated: Date(timeIntervalSince1970: sqlite3_column_double(sStmt, 5) / 1000)
+                timeCreated: Date(timeIntervalSince1970: sqlite3_column_double(sStmt, 5) / 1000),
+                timeUpdated: Date(timeIntervalSince1970: sqlite3_column_double(sStmt, 6) / 1000),
+                parentID: col(sStmt, 4)
             )
-            let first = firstUserText(db: db, stmt: fStmt, sessionId: id)
-            let last = lastAssistantText(db: db, stmt: lStmt, sessionId: id)
-            body(row, first, last)
+            // Deep (first/last text) only for sessions that are new/updated
+            // AND inside the display window — everything else is title-only.
+            let needsDeep = row.timeUpdated >= (deepSince ?? .distantPast)
+            if needsDeep, (known[id] == nil || known[id]! < row.timeUpdated) {
+                let first = firstUserText(db: db, stmt: fStmt, sessionId: id)
+                let last = lastAssistantText(db: db, stmt: lStmt, sessionId: id)
+                body(row, first, last)
+                continue
+            }
+            body(row, nil, nil)
         }
     }
 
@@ -163,7 +186,7 @@ enum OpenCodeDB {
             let branchSel = p.hasBranch ? "w.branch" : "NULL"
             var stmt: OpaquePointer?
             let sql = """
-                SELECT s.id, s.title, s.directory, \(branchSel), s.time_created, s.time_updated
+                SELECT s.id, s.title, s.directory, \(branchSel), s.parent_id, s.time_created, s.time_updated
                 FROM \(p.session) s \(join) WHERE s.id = ?
                 """
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { continue }
@@ -175,8 +198,9 @@ enum OpenCodeDB {
                     title: col(stmt, 1),
                     directory: col(stmt, 2) ?? "",
                     branch: col(stmt, 3),
-                    timeCreated: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4) / 1000),
-                    timeUpdated: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5) / 1000)
+                    timeCreated: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5) / 1000),
+                    timeUpdated: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 6) / 1000),
+                    parentID: col(stmt, 4)
                 )
             }
         }
@@ -257,9 +281,9 @@ enum OpenCodeDB {
         return Array(out.suffix(limit))
     }
 
-    /// HTML artifacts referenced inside this session's message payloads
-    /// (tool outputs carry the same /path/*.html mentions the JSONL does).
-    static func htmlPaths(sessionId: String) -> [String] {
+    /// Artifacts referenced inside this session's message payloads
+    /// (tool outputs carry the same /path/*.html|png|pdf mentions the JSONL does).
+    static func artifactPaths(sessionId: String) -> [String] {
         guard let db = open() else { return [] }
         defer { sqlite3_close(db) }
         var stmt: OpaquePointer?
@@ -269,7 +293,8 @@ enum OpenCodeDB {
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
 
-        let pattern = try? NSRegularExpression(pattern: "(/[A-Za-z0-9_./@-]+\\.html)")
+        let pattern = try? NSRegularExpression(
+            pattern: "(/[A-Za-z0-9_./@\\-]+\\.(?:html|png|jpe?g|gif|webp|heic|pdf))", options: .caseInsensitive)
         var seen = Set<String>()
         var out: [String] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -278,7 +303,7 @@ enum OpenCodeDB {
             for m in pattern?.matches(in: data, range: NSRange(location: 0, length: ns.length)) ?? [] {
                 var p = ns.substring(with: m.range)
                 while let last = p.last, ",\"')]}:;".contains(last) { p.removeLast() }
-                guard p.hasSuffix(".html"), !seen.contains(p),
+                guard !seen.contains(p),
                       FileManager.default.fileExists(atPath: p) else { continue }
                 seen.insert(p)
                 out.append(p)

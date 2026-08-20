@@ -47,6 +47,9 @@ final class MCPServer: @unchecked Sendable {
             NSLog("AgentDeck MCPServer listening on 127.0.0.1:\(Self.port)")
         } catch {
             NSLog("AgentDeck MCPServer start error: \(error)")
+            MainActor.assumeIsolated {
+                ErrorCenter.shared.post("MCP Server の起動に失敗しました", detail: "\(error)")
+            }
         }
     }
 
@@ -240,7 +243,7 @@ final class MCPServer: @unchecked Sendable {
         ],
         [
             "name": "list_sessions",
-            "description": "全エージェントセッション一覧 (opencode2/claude-code/codex/qwen)。状態・最終活動・プロジェクト・セッションID・再開コマンドを返す。物忘れ防止のため作業開始前/再開前に呼ぶこと。",
+            "description": "全エージェントセッション一覧 (pi/deepseek/opencode2/claude-code/codex/qwen)。状態・最終活動・プロジェクト・セッションID・再開コマンドを返す。物忘れ防止のため作業開始前/再開前に呼ぶこと。",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -263,7 +266,7 @@ final class MCPServer: @unchecked Sendable {
         ],
         [
             "name": "resume_session",
-            "description": "セッションの再開コマンド (例: opencode2 --session ses_…, claude --resume ses_…) と作業ディレクトリを返す。新しいターミナル/エージェントで続きを再開するときに使う。",
+            "description": "セッションの再開コマンド (例: opencode2 --session ses_…, pi --session <uuid>, claude --resume ses_…, deepseek: open -a 'DeepSeek Harness') と作業ディレクトリを返す。新しいターミナル/エージェントで続きを再開するときに使う。",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -540,7 +543,9 @@ final class MCPServer: @unchecked Sendable {
         case "claude-code": return "claude --resume \(id)"
         case "codex": return "codex resume \(id)"
         case "opencode2": return "opencode2 --session \(id)"
-        default: return "qwen --resume \(id)"
+        case "pi": return "pi --session \(id)"
+        case "deepseek": return "open -a 'DeepSeek Harness'"
+        default: return "pi --session \(id)"
         }
     }
 
