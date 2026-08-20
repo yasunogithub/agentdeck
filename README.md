@@ -54,6 +54,12 @@ docs/                design notes, MCP docs, dated work reports
 - Only one instance of AgentDeck runs at a time; a second launch activates
   the existing one and exits.
 
+## Built with AI
+
+This app was developed primarily with **DeepSeek V4 Flash** (free tier)
+driven through [OpenCode](https://opencode.ai). Want an agent to rebuild it
+from scratch? Hand it [PROMPT.md](PROMPT.md) — a self-contained build brief.
+
 ## Docs
 
 - [docs/mcp.md](docs/mcp.md) — MCP server tools
