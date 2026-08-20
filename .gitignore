@@ -1,0 +1,22 @@
+# Build artifacts
+.build/
+AgentDeck.app/
+*.o
+
+# macOS
+.DS_Store
+
+# Local agent/tooling state
+.claude/
+.serena/
+.playwright-mcp/
+
+# Runtime data & personal notes
+data/
+config/
+vault/
+opencode.json
+
+# Logs
+*.log
+nohup.out
