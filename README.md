@@ -58,3 +58,7 @@ docs/                design notes, MCP docs, dated work reports
 
 - [docs/mcp.md](docs/mcp.md) — MCP server tools
 - [docs/reports/](docs/reports/) — dated implementation reports
+
+## License
+
+[MIT](LICENSE)
