@@ -72,6 +72,10 @@ struct PaletteView: View {
         .onAppear {
             syncFiltered()
             fieldFocused = true
+            // SwiftUI の FocusState はオーバーレイ表示直後の1回で外れることが
+            // あるため、次ランループと少し遅らせて再アタッチする。
+            DispatchQueue.main.async { self.fieldFocused = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self.fieldFocused = true }
         }
         .onChange(of: router.paletteQuery) { _, _ in syncFiltered() }
     }

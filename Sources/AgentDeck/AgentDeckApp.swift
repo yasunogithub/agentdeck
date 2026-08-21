@@ -437,14 +437,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
             // ⌃⇧J / ⌃⇧L (ATOK IME toggle) must reach the input method before
             // SwiftTerm converts them into a control byte (⌃J = LF, ⌃L = FF).
-            // Route only these exact combos through interpretKeyEvents; plain
-            // ⌃J / ⌃L keep SwiftTerm's native control-byte behavior. Keys are
-            // matched by keyCode (J=38, L=37): かな入力モードでは characters
-            // が仮名や全角になり "j"/"l" に一致せず素通りしてしまうため、
-            // 物理キー位置で判定する。
-            if flags.contains(.control), flags.contains(.shift),
-               !flags.contains(.command), !flags.contains(.option),
-               ev.keyCode == 38 || ev.keyCode == 37,
+            // ⌘⇧J / ⌘⇧L も同様に IME 側へ渡す (ATOK のキー設定がどちらの
+            // 組み合わせでも動くように)。Route only these exact combos through
+            // interpretKeyEvents; plain ⌃J / ⌃L keep SwiftTerm's native
+            // control-byte behavior. Keys are matched by keyCode (J=38, L=37):
+            // かな入力モードでは characters が仮名や全角になり "j"/"l" に一致
+            // せず素通りしてしまうため、物理キー位置で判定する。
+            let isJKL = ev.keyCode == 38 || ev.keyCode == 37
+            let ctrlShift = flags.contains(.control), cmdShift = flags.contains(.command)
+            if flags.contains(.shift), isJKL, !flags.contains(.option),
+               ctrlShift != cmdShift,   // ⌃⇧ または ⌘⇧ のどちらか一方
                let terminal = fr as? LocalProcessTerminalView {
                 terminal.interpretKeyEvents([ev])
                 return nil

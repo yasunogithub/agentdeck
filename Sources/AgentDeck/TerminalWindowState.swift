@@ -33,6 +33,10 @@ final class TerminalWindowState {
         } else {
             open.append((spec, windowNumber))
         }
+        // 開いた瞬間も保存する。saveNow が close/terminate 経由だけだと、
+        // クラッシュや force-kill で「最後に閉じた時点」に巻き戻り、
+        // 開いていたタブが復元から消える。
+        saveNow()
     }
 
     /// A window closed (onDisappear of its TerminalWindowRoot). SwiftUI は
