@@ -220,12 +220,9 @@ struct BoardView: View {
                 focusBoard()
             }
         }
-        .overlay {
-            if router.paletteOpen {
-                PaletteView(items: paletteCatalog())
-                    .padding(.top, 48)
-            }
-        }
+        // ⌘K パレットはスポットライト式フローティングパネル
+        // (PalettePanelController) が全窓共通で表示するため、ここには
+        // overlay を置かない。
         // キーモニタ (AppKit 側) からダッシュボードを開けるよう入口を公開。
         // openWindow は Environment 依存なので、起動時に必ず走る BoardView
         // の onAppear で差し込む。

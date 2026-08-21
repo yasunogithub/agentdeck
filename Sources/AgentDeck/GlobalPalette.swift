@@ -46,9 +46,13 @@ enum GlobalPaletteCatalog {
             ))
         }
 
-        // 2. セッション履歴 (最近のもの順)。subtitle に最後のAI発言を添え、
-        //    「何をしていたセッションか」を検索・判別できるようにする。
-        let recent = store.sessions.sorted { $0.lastActivity > $1.lastActivity }.prefix(80)
+        // 2. セッション履歴 (最近のもの順)。SubAgent は親に内包されるので
+        //    除外。subtitle に最後のAI発言を添え、「何をしていたセッションか」
+        //    を検索・判別できるようにする。
+        let recent = store.sessions
+            .filter { !store.isContainedSubagent($0) }
+            .sorted { $0.lastActivity > $1.lastActivity }
+            .prefix(80)
         for s in recent {
             let snippet = (s.lastAssistant ?? "")
                 .replacingOccurrences(of: "\n", with: " ")

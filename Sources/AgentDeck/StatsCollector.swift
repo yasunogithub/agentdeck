@@ -74,6 +74,9 @@ final class StatsCollector: @unchecked Sendable {
         var agent: String
         var project: String
         var lastActivity: Double
+        /// SubAgent (親に内包される): トークンは計上するがセッション数には
+        /// 数えない。
+        var isSub: Bool
     }
 
     private let lock = NSLock()
@@ -109,7 +112,8 @@ final class StatsCollector: @unchecked Sendable {
         let metas: [Meta] = MainActor.assumeIsolated {
             SessionStore.shared.sessions.map {
                 Meta(path: $0.transcriptPath ?? "", agent: $0.agent,
-                     project: $0.project, lastActivity: $0.lastActivity.timeIntervalSince1970)
+                     project: $0.project, lastActivity: $0.lastActivity.timeIntervalSince1970,
+                     isSub: SessionStore.shared.isContainedSubagent($0))
             }
         }
         let stateCounts = MainActor.assumeIsolated {
@@ -147,8 +151,12 @@ final class StatsCollector: @unchecked Sendable {
         var dirty = false
 
         for meta in metas {
-            agentAgg[meta.agent, default: Agg()].sessions += 1
-            projectAgg[meta.project, default: Agg()].sessions += 1
+            // SubAgent はトークンを親ランに含めるが、セッション数としては
+            // 数えない (ボードの ≀N 内包と同じ考え方)。
+            if !meta.isSub {
+                agentAgg[meta.agent, default: Agg()].sessions += 1
+                projectAgg[meta.project, default: Agg()].sessions += 1
+            }
 
             var entry: StatFileEntry?
             if !meta.path.isEmpty {
@@ -184,12 +192,12 @@ final class StatsCollector: @unchecked Sendable {
                    let fs = Self.seconds(f), let ls = Self.seconds(l), ls > fs {
                     durations.append(ls - fs)
                 }
-                // セッション開始日 = 初回タイムスタンプの日
-                if let f = e.firstTs {
+                // セッション開始日 = 初回タイムスタンプ (SubAgent は数えない)
+                if !meta.isSub, let f = e.firstTs {
                     let day = String(f.prefix(10))
                     dailySessions[day, default: 0] += 1
                 }
-            } else {
+            } else if !meta.isSub {
                 // 解析できないセッションも日別セッション数には最終活動日で数える
                 let day = Self.dayString(meta.lastActivity)
                 dailySessions[day, default: 0] += 1

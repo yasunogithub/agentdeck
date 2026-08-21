@@ -217,11 +217,11 @@ struct DashboardView: View {
         }
     }
 
-    /// 実行中/入力待ちのライブ一覧。クリックでそのセッションを開く。
+    /// 実行中/入力待ちのライブ一覧。SubAgent は除外。クリックで開く。
     private var liveSummary: some View {
         groupBox("ライブサマリー") {
             let live = store.sessions
-                .filter { $0.state == .running || $0.state == .waiting }
+                .filter { ($0.state == .running || $0.state == .waiting) && !store.isContainedSubagent($0) }
                 .sorted { $0.lastActivity > $1.lastActivity }
             if live.isEmpty {
                 placeholder("実行中のセッションはありません")

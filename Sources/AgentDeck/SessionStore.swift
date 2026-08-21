@@ -162,6 +162,16 @@ final class SessionStore: ObservableObject {
         return session.lastActivity < Self.boardCutoff
     }
 
+    /// SubAgent セッションか (親がボードに表示されている場合 = 親カードに
+    /// 内包される)。ボード以外のパレット・ダッシュボード・統計でも
+    /// トップレベル表示からは除外する。親が居ない/アーカイブ済みの子は
+    /// 行き場がないので独立扱い。
+    func isContainedSubagent(_ s: AgentSession) -> Bool {
+        guard let pid = s.parentID else { return false }
+        guard let parent = sessions.first(where: { $0.key == pid }) else { return false }
+        return shouldShowOnBoard(parent)
+    }
+
     func shouldShowOnBoard(_ session: AgentSession) -> Bool {
         guard !manuallyArchived.contains(session.key) else { return false }
         return showHistory || session.lastActivity >= Self.boardCutoff || manuallyRestored.contains(session.key)

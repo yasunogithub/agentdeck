@@ -101,13 +101,7 @@ struct DetailWindowRoot: View {
         .overlay(alignment: .topTrailing) {
             ErrorDot().padding(.top, 14).padding(.trailing, 20)
         }
-        // ⌘K グローバルパレット — ボード以外の窓からも開ける。
-        .overlay {
-            if router.paletteOpen {
-                PaletteView(items: GlobalPaletteCatalog.items())
-                    .padding(.top, 48)
-            }
-        }
+        // ⌘K パレットは PalettePanelController (フローティングパネル) が表示する
     }
 }
 
@@ -190,13 +184,7 @@ struct TerminalWindowRoot: View {
         .overlay(alignment: .topTrailing) {
             ErrorDot().padding(.top, 14).padding(.trailing, 20)
         }
-        // ⌘K グローバルパレット — ボード以外の窓からも開ける。
-        .overlay {
-            if router.paletteOpen {
-                PaletteView(items: GlobalPaletteCatalog.items())
-                    .padding(.top, 48)
-            }
-        }
+        // ⌘K パレットは PalettePanelController (フローティングパネル) が表示する
         .windowTransparency(ui.terminalOpacity)
         // Track this window in the restore registry (spec + windowNumber).
         .background(WindowAccessor { w in
@@ -281,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server.start()
         mcp.start()
         Notifier.installDelegate()
+        PalettePanelController.shared.start()
         TranscriptScanner.shared.start()
         installKeyMonitor()
         installSwipeMonitor()
