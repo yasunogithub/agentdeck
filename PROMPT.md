@@ -51,22 +51,21 @@ milestone by milestone. Do not skip the constraints.
 
 ## 3. Architecture
 
-```
-Sources/AgentDeck/
-  AgentDeckApp.swift      AppDelegate: lifecycle, key/swipe monitors,
-                          single-instance guard, orphan reaping
-  TranscriptScanner.swift watches transcript dirs, parses JSONL sessions
-  SessionStore.swift      in-memory session model + archive/sections state
-  OpenCodeDB.swift        reads the opencode sqlite DB for fast backfill
-  BoardView.swift         card grid, selection, right panel host, hotkeys
-  SessionRightPanel.swift embedded terminal + detail tabs
-  TerminalSheetView.swift SwiftTerm view (Metal renderer), PTY lifecycle
-  TerminalWindowState.swift standalone-window registry, persistence+restore
-  HotkeyRouter.swift      decouples key events from actions across windows
-  EventServer.swift       localhost HTTP/SSE hub announcing session changes
-  MCPServer.swift         MCP tool server (status/summary/session-id/remind)
-  …                       one file per small service (Notifier, Dictation…)
-```
+Organize the code as one concern per module — roughly:
+
+- **Scanner** — watches the transcript sources above, parses each CLI's
+  session files into a common session model.
+- **Store** — in-memory session state (title, project, state, activity,
+  subagents), archive & per-project sections.
+- **Fast backfill** — read OpenCode's sqlite DB directly so the board has
+  history instantly, before scans finish.
+- **Board UI** — card grid, selection, keyboard navigation, right panel host.
+- **Panel terminal** — embedded terminal + detail tabs for one session.
+- **Terminal view** — SwiftTerm wrapper owning the PTY lifecycle.
+- **Window registry** — persistence & restore of standalone terminal windows.
+- **Hotkey router** — typed actions shared by global and local key paths.
+- **Event server** — localhost hub announcing session changes.
+- **MCP server** — tool server for editors/agents.
 
 Design rules:
 
