@@ -27,12 +27,18 @@ final class TerminalWindowState {
     /// 現在開いているターミナル窓の一覧 (グローバルパレットの「タブ」用)。
     var openSpecs: [(spec: String, windowNumber: Int)] { open }
 
+    /// 復元処理中フラグ。この間の register 由来の saveNow を抑制し、
+    /// 全窓復元完了後に一度だけ確定保存する (途中で死んでも元の保存
+    /// セットを部分集合で上書きしないため)。
+    private var isRestoring = false
+
     func register(spec: String, windowNumber: Int) {
         if let idx = open.firstIndex(where: { $0.windowNumber == windowNumber }) {
             open[idx].spec = spec
         } else {
             open.append((spec, windowNumber))
         }
+        Self.tlog("register \(spec) wn=\(windowNumber) total=\(open.count)")
         // 開いた瞬間も保存する。saveNow が close/terminate 経由だけだと、
         // クラッシュや force-kill で「最後に閉じた時点」に巻き戻り、
         // 開いていたタブが復元から消える。
@@ -54,6 +60,7 @@ final class TerminalWindowState {
             NSApp.window(withWindowNumber: pair.windowNumber) == nil
         }
         if open.count != before.count {
+            Self.tlog("unregister \(spec) wn=\(windowNumber.map(String.init) ?? "sweep") remaining=\(open.count)")
             saveNow()
             let closed = before.filter { pair in
                 !open.contains { $0.windowNumber == pair.windowNumber }
@@ -71,6 +78,7 @@ final class TerminalWindowState {
     func clearSaved() {
         UserDefaults.standard.removeObject(forKey: defaultsKey)
         recentlyClosed.removeAll()
+        Self.tlog("clearSaved by user")
     }
 
     /// ⌘⇧T — reopen the most recently closed terminal window (browser-style,
@@ -86,8 +94,13 @@ final class TerminalWindowState {
     }
 
     /// Persist specs in current screen order. Windows already closed are
-    /// skipped (their windowNumber no longer resolves).
+    /// skipped (their windowNumber no longer resolves). 復元処理中は
+    /// 部分集合で上書きしない。
     func saveNow() {
+        guard !isRestoring else {
+            Self.tlog("saveNow skipped (restoring)")
+            return
+        }
         let live = open.compactMap { pair -> (spec: String, frame: NSRect)? in
             guard let window = NSApp.window(withWindowNumber: pair.windowNumber) else { return nil }
             return (pair.spec, window.frame)
@@ -96,7 +109,21 @@ final class TerminalWindowState {
             if a.frame.minY != b.frame.minY { return a.frame.minY > b.frame.minY }
             return a.frame.minX < b.frame.minX
         }
-        UserDefaults.standard.set(ordered.map(\.spec), forKey: defaultsKey)
+        let specs = ordered.map(\.spec)
+        UserDefaults.standard.set(specs, forKey: defaultsKey)
+        Self.tlog("saveNow \(specs.count) tabs: \(specs.joined(separator: " | "))")
+    }
+
+    /// 診断ログ (/tmp/agentdeck-tabs.log)。タブ記憶の不具合追跡用。
+    static func tlog(_ s: String) {
+        let line = "\(Date()) \(s)\n"
+        if let h = FileHandle(forWritingAtPath: "/tmp/agentdeck-tabs.log") {
+            h.seekToEndOfFile()
+            h.write(line.data(using: .utf8)!)
+            try? h.close()
+        } else {
+            try? line.data(using: .utf8)?.write(to: URL(fileURLWithPath: "/tmp/agentdeck-tabs.log"))
+        }
     }
 
     /// 指定セッションのターミナル窓が既に開いている場合、その NSWindow を
@@ -122,6 +149,9 @@ final class TerminalWindowState {
         // 設定で復元を無効化できる (ゴミタブ連復元の抑止用)。
         guard UISettings.shared.restoreTabs else { return }
         let saved = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
+        Self.tlog("restore start: \(saved.count) saved specs")
+        guard !saved.isEmpty else { return }
+        isRestoring = true
         guard !saved.isEmpty else { return }
         var seen = Set<String>()
         var pending: [String] = []
@@ -135,13 +165,22 @@ final class TerminalWindowState {
             attempts += 1
             let ready = pending.filter { spec in
                 // リトライ中にユーザーが手動で開いたセッションは復元しない。
-                if existingWindow(forSession: Self.sessionKey(from: spec)) != nil { return true }
+                if existingWindow(forSession: Self.sessionKey(from: spec)) != nil {
+                    Self.tlog("restore skip (already open): \(spec)")
+                    return true
+                }
                 guard Self.isRestorable(spec) else { return false }
+                Self.tlog("restore fire: \(spec)")
                 HotkeyRouter.shared.fire(.openTerminalSpec(spec))
                 return true
             }
             pending.removeAll { ready.contains($0) }
-            guard !pending.isEmpty, attempts < 10 else { return }
+            guard !pending.isEmpty, attempts < 10 else {
+                isRestoring = false
+                saveNow()   // 全窓復元完了: 最終状態を確定保存
+                Self.tlog("restore done (attempts=\(attempts), remaining=\(pending.count))")
+                return
+            }
             // Startup scan still filling the store — try again shortly.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { attempt() }
         }
