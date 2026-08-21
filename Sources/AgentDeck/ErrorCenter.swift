@@ -25,7 +25,7 @@ final class ErrorCenter: ObservableObject {
 
     private var dismissTask: Task<Void, Never>?
 
-    func post(_ message: String, detail: String? = nil) {
+    func post(_ message: String, detail: String? = nil, playSound: Bool = true) {
         let item = ErrorItem(message: message, detail: detail)
         unacknowledged += 1
         withAnimation(.spring(duration: 0.3)) { current = item }
@@ -35,7 +35,7 @@ final class ErrorCenter: ObservableObject {
             guard !Task.isCancelled else { return }
             self?.clear()
         }
-        NSSound(named: "Basso")?.play()
+        if playSound { NSSound(named: "Basso")?.play() }
         updateDockBadge()
     }
 

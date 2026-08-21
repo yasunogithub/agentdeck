@@ -545,8 +545,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     DebugLog.write("pane font zoom \(pane) → \(level)")
                     return nil
                 }
-                let appCmd = flags == .command && ["f", "t", "r"].contains(chars)
-                let appShiftCmd = flags == [.command, .shift] && ["n", "h", "a", "t"].contains(chars)
+                // 窓を開く系 (⌘T 新規ターミナル / ⌘⇧T 閉じたタブを復元) は
+                // どの窓にフォーカスがあっても意味が通るのでここで実行する。
+                // 以前は黙って握り潰していたため、ターミナルフォーカス中の
+                // ⌘T が何もしなかった。ボードの選択状態に依存する ⌘F/⌘R/
+                // ⌘⇧N/⌘⇧H/⌘⇧A は従来どおり握り潰す (裏で勝手に動かない)。
+                if flags == .command, chars == "t" {
+                    DebugLog.write("⌘T new terminal (terminal focus)")
+                    router.fire(.newTerminal)
+                    return nil
+                }
+                if flags == [.command, .shift], chars == "t" {
+                    router.fire(.reopenLastTerminal)
+                    return nil
+                }
+                let appCmd = flags == .command && ["f", "r"].contains(chars)
+                let appShiftCmd = flags == [.command, .shift] && ["n", "h", "a"].contains(chars)
                 if appCmd || appShiftCmd { return nil }
                 // ⌘D ダッシュボード / ⌘, 設定 / ⌘W 窓を閉じる — ターミナルが
                 // firstResponder のときもメニュー相当が確実に効くように、ここで

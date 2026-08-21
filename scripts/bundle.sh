@@ -52,6 +52,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+# UNUserNotificationCenter は署名識別子と CFBundleIdentifier の一致を見る。
+# linker-signed のまま (Identifier=AgentDeck) だと requestAuthorization が
+# UNErrorDomain Code=1 で即拒否され、通知が一切出ない。ad-hoc 再署名で
+# 識別子を揃える。
+codesign --force --sign - --identifier dev.agentdeck.app "$APP" >/dev/null 2>&1 || true
 echo "built $APP"
 
 # 毎ビルド /Applications へ同期 (起動中はコピー失敗するため先に終了させる)
