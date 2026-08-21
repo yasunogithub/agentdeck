@@ -355,8 +355,16 @@ struct BoardView: View {
         case .openTerminalSpec(let spec): openWindow(id: "terminal", value: spec)
         case .reopenLastTerminal: _ = TerminalWindowState.shared.reopenLast()
         case .focusSession(let key):
-            // 通知クリック: そのセッションを right panel で開く。
+            // 通知クリック・パレット: そのセッションを right panel で開く。
+            // ターミナル窓などから呼ばれるため、ボード窓を必ず前面に出す。
             if let s = store.sessions.first(where: { $0.key == key }) {
+                let boardWin = NSApp.windows.first {
+                    $0.isVisible && ($0.title.isEmpty || $0.title == "AgentDeck")
+                } ?? NSApp.windows.first {
+                    $0.title.isEmpty || $0.title == "AgentDeck"
+                }
+                boardWin?.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
                 openSession(s)
             }
         case .archive: sidebar = sidebar == .archive ? .all : .archive

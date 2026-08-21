@@ -150,6 +150,36 @@ final class TranslucentTerminalView: LocalProcessTerminalView {
         if window != nil {
             enableMetalRenderer()
         }
+        // ファイル DND を受け付ける (既存の登録タイプは壊さずマージ)。
+        if !registeredDraggedTypes.contains(.fileURL) {
+            registerForDraggedTypes(registeredDraggedTypes + [.fileURL])
+        }
+    }
+
+    // MARK: ファイル DND — ドロップしたファイルのパスをシェル入力に挿入する
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        fileURLs(from: sender) == nil ? [] : .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let paths = fileURLs(from: sender) else { return false }
+        send(txt: paths.map(Self.shellQuoted).joined(separator: " "))
+        return true
+    }
+
+    private func fileURLs(from sender: NSDraggingInfo) -> [String]? {
+        let urls = sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? []
+        let paths = urls.compactMap { $0.path }.filter { !$0.isEmpty }
+        return paths.isEmpty ? nil : paths
+    }
+
+    /// シングルクォートで囲み、内部の ' を '\'' としてエスケープ。
+    private static func shellQuoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     /// GPU 描画へ移行する (CPU で全行 NSAttributedString を組み立てる描画を
