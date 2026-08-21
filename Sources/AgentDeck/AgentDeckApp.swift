@@ -13,6 +13,7 @@ struct AgentDeckApp: App {
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
+            DashboardCommands()
             CommandMenu("セッション") {
                 // No Return/⌘⏎ key equivalents here: menu equivalents fire even
                 // while the search field is editing, opening terminals behind the
@@ -49,8 +50,27 @@ struct AgentDeckApp: App {
         }
         .defaultSize(width: 620, height: 520)
 
+        WindowGroup(id: "dashboard") {
+            DashboardView()
+                .frame(minWidth: 760, minHeight: 560)
+        }
+        .defaultSize(width: 1020, height: 760)
+
         Settings {
             SettingsView()
+        }
+    }
+}
+
+/// ダッシュボードを開くメニュー (⌘D)。openWindow は Commands の
+/// Environment からしか取れないので専用 struct にする。
+private struct DashboardCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu("表示") {
+            Button("ダッシュボード") { openWindow(id: "dashboard") }
+                .keyboardShortcut("d", modifiers: .command)
         }
     }
 }
@@ -238,6 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         server.start()
         mcp.start()
+        Notifier.installDelegate()
         TranscriptScanner.shared.start()
         installKeyMonitor()
         installSwipeMonitor()

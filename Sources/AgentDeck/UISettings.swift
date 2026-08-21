@@ -383,8 +383,70 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            Section("通知") {
+                NotificationSettingsSection()
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 430)
+        .frame(width: 420, height: 620)
+    }
+}
+
+/// 通知のイベント別 ON/OFF・サウンド・静寂時間の設定。
+/// NotificationSettings はロックで守られた prefs を持つので、表示は
+/// revision を観察し、変更は update() 経由で反映する。
+struct NotificationSettingsSection: View {
+    @ObservedObject private var settings = NotificationSettings.shared
+
+    /// revision 変化を body 再評価に変換しつつ、現在値を束ねた Binding を作る。
+    private func bind<V: Equatable>(_ get: @escaping (NotificationPrefs) -> V,
+                                    _ set: @escaping (inout NotificationPrefs, V) -> Void)
+        -> Binding<V> {
+        Binding(
+            get: { get(NotificationSettings.shared.prefs) },
+            set: { newValue in
+                NotificationSettings.shared.update { p in set(&p, newValue) }
+            }
+        )
+    }
+
+    var body: some View {
+        let prefs = NotificationSettings.shared.prefs
+        ForEach(NotificationEvent.allCases) { ev in
+            HStack {
+                Toggle(ev.label, isOn: bind({ $0.isEnabled(ev) }, { $0.enabled[ev.rawValue] = $1 }))
+                Spacer()
+                Picker("", selection: bind({ $0.sound(for: ev) }, { $0.sounds[ev.rawValue] = $1 })) {
+                    Text("無音").tag("")
+                    ForEach(NotificationSettings.soundChoices.filter { !$0.isEmpty }, id: \.self) { s in
+                        Text(s).tag(s)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 110)
+                .disabled(!prefs.isEnabled(ev))
+            }
+        }
+        Divider()
+        Toggle("静寂時間", isOn: bind({ $0.quietEnabled }, { $0.quietEnabled = $1 }))
+        if prefs.quietEnabled {
+            HStack {
+                LabeledContent("開始") {
+                    Picker("", selection: bind({ $0.quietStartHour }, { $0.quietStartHour = $1 })) {
+                        ForEach(0..<24) { h in Text("\(h):00").tag(h) }
+                    }
+                    .labelsHidden().frame(width: 90)
+                }
+                LabeledContent("終了") {
+                    Picker("", selection: bind({ $0.quietEndHour }, { $0.quietEndHour = $1 })) {
+                        ForEach(0..<24) { h in Text("\(h):00").tag(h) }
+                    }
+                    .labelsHidden().frame(width: 90)
+                }
+            }
+        }
+        Text("静寂時間中はセッション通知を止めます (音声入力など操作フィードバックは鳴り続けます)。通知をクリックするとそのセッションを開きます。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 }

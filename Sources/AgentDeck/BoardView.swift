@@ -348,6 +348,11 @@ struct BoardView: View {
         case .typeFilter(let s): appendTypeAhead(s)
         case .openTerminalSpec(let spec): openWindow(id: "terminal", value: spec)
         case .reopenLastTerminal: _ = TerminalWindowState.shared.reopenLast()
+        case .focusSession(let key):
+            // 通知クリック: そのセッションを right panel で開く。
+            if let s = store.sessions.first(where: { $0.key == key }) {
+                openSession(s)
+            }
         case .archive: sidebar = sidebar == .archive ? .all : .archive
         case .goMain:
             typeAhead = ""

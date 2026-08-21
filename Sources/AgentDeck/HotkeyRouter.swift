@@ -48,6 +48,8 @@ enum Hotkey {
     case openTerminalSpec(String)
     /// ⌘⇧T — reopen the most recently closed terminal window (browser-style).
     case reopenLastTerminal
+    /// macOS 通知クリック — そのセッションを right panel で開く。
+    case focusSession(String)
 }
 
 /// SwiftUI text fields are not detectable via firstResponder class checks,
