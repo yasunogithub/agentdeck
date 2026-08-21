@@ -16,6 +16,7 @@ struct SessionDetailView: View {
     var onClose: () -> Void = {}
     var onAttach: (() -> Void)? = nil
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var ui = UISettings.shared
 
     @State private var tab: Tab = .history
     @State private var messages: [ChatMessage] = []
@@ -73,6 +74,9 @@ struct SessionDetailView: View {
             }
         }
         .workspaceOpenURL()
+        // 設定「詳細画面フォント」でテキスト全体を拡縮 (semantic font が
+        // 対象。既定は .large = 標準より一段階大)。
+        .dynamicTypeSize(ui.detailTypeSize)
         .frame(minWidth: inPanel ? 0 : 620, minHeight: inPanel ? 220 : 520)
         .task(id: session.key) {
             await reloadSession()

@@ -61,6 +61,34 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         didSet { UserDefaults.standard.set(headerJapaneseFont, forKey: "ui.headerJapaneseFont") }
     }
 
+    /// 詳細画面のテキスト拡縮。DynamicTypeSize 配列のインデックス
+    /// (0=xSmall … 8=accessibility1)。既定 3 = .large (標準より一段階大)。
+    @Published var detailTypeIndex: Int {
+        didSet { UserDefaults.standard.set(detailTypeIndex, forKey: "ui.detailTypeIndex") }
+    }
+
+    static let typeSizes: [DynamicTypeSize] = [
+        .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+        .accessibility1, .accessibility2,
+    ]
+
+    var detailTypeSize: DynamicTypeSize {
+        Self.typeSizes[min(max(detailTypeIndex, 0), Self.typeSizes.count - 1)]
+    }
+
+    var detailTypeLabel: String {
+        switch detailTypeSize {
+        case .xSmall: return "極小"
+        case .small: return "小"
+        case .medium: return "標準"
+        case .large: return "大"
+        case .xLarge: return "特大"
+        case .xxLarge: return "XXL"
+        case .xxxLarge: return "XXXL"
+        default: return "最大"
+        }
+    }
+
     var effectiveBoardSize: Double { min(max(boardSize + Double(mainZoom), 8), 40) }
     /// Card height follows the zoom so a zoomed board reads denser/airier as
     /// a unit; the drag-grip still tunes the base height.
@@ -156,6 +184,7 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         autoArchiveDoneHours = d.object(forKey: "ui.autoArchiveDoneHours") as? Double ?? 2
         headerLatinFont = d.string(forKey: "ui.headerLatinFont") ?? ""
         headerJapaneseFont = d.string(forKey: "ui.headerJapaneseFont") ?? ""
+        detailTypeIndex = min(max(d.object(forKey: "ui.detailTypeIndex") as? Int ?? 3, 0), Self.typeSizes.count - 1)
     }
 }
 
@@ -385,6 +414,17 @@ struct SettingsView: View {
             }
             Section("通知") {
                 NotificationSettingsSection()
+            }
+            Section("詳細画面") {
+                LabeledContent("フォント \(ui.detailTypeLabel)") {
+                    Slider(value: Binding(
+                        get: { Double(ui.detailTypeIndex) },
+                        set: { ui.detailTypeIndex = Int($0.rounded()) }
+                    ), in: 0...Double(UISettings.typeSizes.count - 1), step: 1)
+                }
+                Text("詳細タブ・詳細ウィンドウのテキスト全体の大きさです (履歴・要約・リンク等)。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
