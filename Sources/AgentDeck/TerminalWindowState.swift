@@ -35,13 +35,17 @@ final class TerminalWindowState {
         }
     }
 
-    /// A window closed (onDisappear of its TerminalWindowRoot). Only entries
-    /// whose window is actually gone are dropped — the same spec may still be
-    /// open in another window. The visible order is re-saved right away so a
-    /// crash can't resurrect closed tabs. Dropped specs feed the ⌘⇧T
-    /// reopen-last stack.
-    func unregister(spec: String) {
+    /// A window closed (onDisappear of its TerminalWindowRoot). SwiftUI は
+    /// 窓破壊より先に onDisappear を出すことがあるため、windowNumber を
+    /// 受けて確実に該当エントリを落とす (NSApp.window 解決に頼らない)。
+    /// 同一 spec の別窓は残る。落ちた分は即 saveNow してクラッシュ時も
+    /// 閉じたタブが蘇らないようにし、⌘⇧T の復元スタックに積む。
+    func unregister(spec: String, windowNumber: Int? = nil) {
         let before = open
+        if let windowNumber {
+            open.removeAll { $0.windowNumber == windowNumber }
+        }
+        // 念のため死んだ窓も一掃
         open.removeAll { pair in
             NSApp.window(withWindowNumber: pair.windowNumber) == nil
         }
@@ -57,6 +61,12 @@ final class TerminalWindowState {
                 recentlyClosed.removeLast(recentlyClosed.count - 10)
             }
         }
+    }
+
+    /// 保存済みタブセットと ⌘⇧T スタックを消す (ゴミタブのリセット用)。
+    func clearSaved() {
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        recentlyClosed.removeAll()
     }
 
     /// ⌘⇧T — reopen the most recently closed terminal window (browser-style,
@@ -105,6 +115,8 @@ final class TerminalWindowState {
     /// Deduplication is per *session key*, not per raw spec — the same session
     /// saved once as `resume` and once as `attach:…` must not reopen twice.
     func restoreAfterLaunch() {
+        // 設定で復元を無効化できる (ゴミタブ連復元の抑止用)。
+        guard UISettings.shared.restoreTabs else { return }
         let saved = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
         guard !saved.isEmpty else { return }
         var seen = Set<String>()

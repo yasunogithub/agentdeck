@@ -25,6 +25,10 @@ struct AgentDeckApp: App {
                 Button("ターミナルを開く") { HotkeyRouter.shared.fire(.openTerminal) }
                 Button("閉じたターミナルを開き直す") { HotkeyRouter.shared.fire(.reopenLastTerminal) }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
+                Button("保存済みタブをクリア", role: .destructive) {
+                    TerminalWindowState.shared.clearSaved()
+                }
+                .help("起動時復元用のタブ一覧と ⌘⇧T 履歴を消します (開いている窓はそのまま)")
                 Button("詳細を開く") { HotkeyRouter.shared.fire(.openDetail) }
                 Button("新規セッションへハンドオフ") { HotkeyRouter.shared.fire(.handoff) }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
@@ -220,7 +224,7 @@ struct TerminalWindowRoot: View {
             // would drop the wrong one. Instead, drop all entries whose window
             // is gone, handled by saveNow() on the next quit; removing this
             // spec's dead windows now keeps the saved set correct live.
-            TerminalWindowState.shared.unregister(spec: spec)
+            TerminalWindowState.shared.unregister(spec: spec, windowNumber: nsWindow?.windowNumber)
         }
     }
 

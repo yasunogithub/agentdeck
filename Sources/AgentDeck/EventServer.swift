@@ -96,6 +96,23 @@ final class EventServer: @unchecked Sendable {
             }
             let body = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             return ("200 OK", body)
+        case ("GET", "/debug/notify"):
+            // 通知テスト: /debug/notify?event=done&key=<sessionKey>
+            // key 省略時は最初の running/waiting セッションで発火する。
+            let comps = URLComponents(string: "http://local\(request.path)")
+            let items = comps?.queryItems ?? []
+            let evName = items.first(where: { $0.name == "event" })?.value ?? "done"
+            let event = NotificationEvent(rawValue: evName) ?? .done
+            let key = items.first(where: { $0.name == "key" })?.value
+            let target = store.sessions.first(where: { $0.key == key })
+                ?? store.sessions.first(where: { $0.state == .running || $0.state == .waiting })
+                ?? store.sessions.first
+            Notifier.shared.sessionEvent(
+                event,
+                body: target.map { "\($0.title) — 通知テスト" } ?? "テスト通知",
+                sessionKey: target?.key
+            )
+            return ("200 OK", "{\"ok\":true,\"session\":\"\(target?.key ?? "")\"}")
         case ("POST", "/events"):
             let decoder = JSONDecoder()
             var applied = 0

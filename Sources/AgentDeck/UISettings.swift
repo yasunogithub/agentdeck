@@ -67,6 +67,11 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         didSet { UserDefaults.standard.set(detailTypeIndex, forKey: "ui.detailTypeIndex") }
     }
 
+    /// 起動時のターミナルタブ復元。OFF にすると前回の窓を開き直さない。
+    @Published var restoreTabs: Bool {
+        didSet { UserDefaults.standard.set(restoreTabs, forKey: "ui.restoreTabs") }
+    }
+
     static let typeSizes: [DynamicTypeSize] = [
         .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
         .accessibility1, .accessibility2,
@@ -185,6 +190,7 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         headerLatinFont = d.string(forKey: "ui.headerLatinFont") ?? ""
         headerJapaneseFont = d.string(forKey: "ui.headerJapaneseFont") ?? ""
         detailTypeIndex = min(max(d.object(forKey: "ui.detailTypeIndex") as? Int ?? 3, 0), Self.typeSizes.count - 1)
+        restoreTabs = d.object(forKey: "ui.restoreTabs") as? Bool ?? true
     }
 }
 
@@ -423,6 +429,12 @@ struct SettingsView: View {
                     ), in: 0...Double(UISettings.typeSizes.count - 1), step: 1)
                 }
                 Text("詳細タブ・詳細ウィンドウのテキスト全体の大きさです (履歴・要約・リンク等)。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section("ターミナル") {
+                Toggle("起動時に前回のタブを復元", isOn: $ui.restoreTabs)
+                Text("OFF にすると次回起動でターミナル窓を自動的に開き直しません。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
