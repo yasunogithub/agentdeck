@@ -226,6 +226,12 @@ struct BoardView: View {
                     .padding(.top, 48)
             }
         }
+        // キーモニタ (AppKit 側) からダッシュボードを開けるよう入口を公開。
+        // openWindow は Environment 依存なので、起動時に必ず走る BoardView
+        // の onAppear で差し込む。
+        .onAppear {
+            GlobalWindowActions.openDashboard = { openWindow(id: "dashboard") }
+        }
         .overlay(alignment: .top) {
             if dictation.active {
                 HStack(spacing: 8) {

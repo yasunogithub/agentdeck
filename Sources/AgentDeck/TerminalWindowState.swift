@@ -24,6 +24,9 @@ final class TerminalWindowState {
     /// ⌘⇧T 用: 直近で閉じたターミナル窓の spec 履歴 (最新が先頭、最大10件)。
     private var recentlyClosed: [String] = []
 
+    /// 現在開いているターミナル窓の一覧 (グローバルパレットの「タブ」用)。
+    var openSpecs: [(spec: String, windowNumber: Int)] { open }
+
     func register(spec: String, windowNumber: Int) {
         if let idx = open.firstIndex(where: { $0.windowNumber == windowNumber }) {
             open[idx].spec = spec

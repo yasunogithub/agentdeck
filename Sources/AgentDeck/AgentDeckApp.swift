@@ -78,6 +78,7 @@ private struct DashboardCommands: Commands {
 struct DetailWindowRoot: View {
     let key: String
     @ObservedObject private var store = SessionStore.shared
+    @ObservedObject private var router = HotkeyRouter.shared
 
     var body: some View {
         Group {
@@ -96,6 +97,13 @@ struct DetailWindowRoot: View {
         .overlay(alignment: .topTrailing) {
             ErrorDot().padding(.top, 14).padding(.trailing, 20)
         }
+        // ⌘K グローバルパレット — ボード以外の窓からも開ける。
+        .overlay {
+            if router.paletteOpen {
+                PaletteView(items: GlobalPaletteCatalog.items())
+                    .padding(.top, 48)
+            }
+        }
     }
 }
 
@@ -103,6 +111,7 @@ struct TerminalWindowRoot: View {
     let spec: String
     @ObservedObject private var store = SessionStore.shared
     @ObservedObject private var ui = UISettings.shared
+    @ObservedObject private var router = HotkeyRouter.shared
     // クリック不要でそのまま入力できるよう、このウィンドウがキー窓になった
     // タイミングでターミナルビューを自動フォーカスする。
     @State private var nsWindow: NSWindow?
@@ -174,6 +183,13 @@ struct TerminalWindowRoot: View {
         .overlay(alignment: .top) { ErrorBanner() }
         .overlay(alignment: .topTrailing) {
             ErrorDot().padding(.top, 14).padding(.trailing, 20)
+        }
+        // ⌘K グローバルパレット — ボード以外の窓からも開ける。
+        .overlay {
+            if router.paletteOpen {
+                PaletteView(items: GlobalPaletteCatalog.items())
+                    .padding(.top, 48)
+            }
         }
         .windowTransparency(ui.terminalOpacity)
         // Track this window in the restore registry (spec + windowNumber).
@@ -427,6 +443,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 terminal.interpretKeyEvents([ev])
                 return nil
             }
+            // ⌘K パレットが開いている間は、どの窓・どの firstResponder でも
+            // このキー群がパレット操作になる (ターミナル窓から開いた場合も
+            // ↑↓/⏎/Esc/⌘K が効く)。他のキーは素通し — パレットの TextField
+            // にフォーカスがあれば入力され、なければ元の挙動のまま。
+            if router.paletteOpen {
+                if flags == .command, chars == "k" {
+                    self.closePaletteRestoringFocus()
+                    return nil
+                }
+                if flags == [] || flags == .shift {
+                    switch ev.keyCode {
+                    case 53: self.closePaletteRestoringFocus(); return nil   // Esc
+                    case 125: router.paletteMove(1); return nil              // ↓
+                    case 126: router.paletteMove(-1); return nil             // ↑
+                    case 36: self.runPaletteRestoringFocus(); return nil     // ⏎
+                    default: break
+                    }
+                }
+            }
             // ⌘1…9 — tab/window navigation for standalone terminal windows.
             // In a system tab group the digit picks that tab; without one it
             // activates the Nth visible non-board window (same left→right /
@@ -511,6 +546,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let appCmd = flags == .command && ["f", "t", "r"].contains(chars)
                 let appShiftCmd = flags == [.command, .shift] && ["n", "h", "a", "t"].contains(chars)
                 if appCmd || appShiftCmd { return nil }
+                // ⌘D ダッシュボード / ⌘, 設定 / ⌘W 窓を閉じる — ターミナルが
+                // firstResponder のときもメニュー相当が確実に効くように、ここで
+                // 明示的に請求して処理する (素通しするとシェルに吸われる)。
+                if flags == .command, chars == "d" {
+                    GlobalWindowActions.openDashboard?()
+                    return nil
+                }
+                if flags == .command, chars == "," {
+                    NSApp.activate(ignoringOtherApps: true)
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    return nil
+                }
+                if flags == .command, chars == "w", let win = ev.window {
+                    win.performClose(nil)
+                    return nil
+                }
                 // FM suggestion bar (any terminal, any window): feed the line
                 // buffer, then accept via Tab/→ while suggestions are showing.
                 // Only unmodified presses count and acceptance requires the
