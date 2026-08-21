@@ -193,23 +193,29 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         // 自動アーカイブ: 新デフォルトは 24h。旧デフォルト 2h は移行、
         // 明示変更済み (2 以外の正数) と意図的 OFF (0) は保持。
         let storedHours = d.object(forKey: "ui.autoArchiveDoneHours") as? Double
+        let lastStored = d.object(forKey: "ui.autoArchiveLastHours") as? Double
+        let hours: Double
+        let lastHours: Double
         switch storedHours {
         case nil:
-            autoArchiveDoneHours = 24
+            hours = 24
+            lastHours = lastStored ?? 24
             UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveDoneHours")
         case 0:
-            autoArchiveDoneHours = 0
-            autoArchiveLastHours = 24
-            UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveLastHours")
+            hours = 0
+            lastHours = lastStored ?? 24
         case 2:
-            autoArchiveDoneHours = 24
+            hours = 24
+            lastHours = lastStored ?? 24
             UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveDoneHours")
         default:
-            autoArchiveDoneHours = storedHours ?? 24
+            hours = storedHours ?? 24
+            lastHours = lastStored ?? max(hours, 24)
         }
+        autoArchiveDoneHours = hours
+        autoArchiveLastHours = lastHours
         if d.object(forKey: "ui.autoArchiveLastHours") == nil {
-            autoArchiveLastHours = max(autoArchiveDoneHours, 24)
-            UserDefaults.standard.set(autoArchiveLastHours, forKey: "ui.autoArchiveLastHours")
+            UserDefaults.standard.set(lastHours, forKey: "ui.autoArchiveLastHours")
         }
         headerLatinFont = d.string(forKey: "ui.headerLatinFont") ?? ""
         headerJapaneseFont = d.string(forKey: "ui.headerJapaneseFont") ?? ""

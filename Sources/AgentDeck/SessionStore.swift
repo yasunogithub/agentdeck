@@ -419,7 +419,7 @@ final class SessionStore: ObservableObject {
             sessions[idx].prNumber = prNumber
             if prState == "MERGED" {
                 setState(idx, .done)
-                Notifier.shared.sessionEvent(.prMerged, body: sessions[idx].title, sessionKey: sessions[idx].key)
+                Notifier.shared.sessionEvent(.prMerged, session: sessions[idx])
             }
         }
         publishSoon()
@@ -431,12 +431,12 @@ final class SessionStore: ObservableObject {
         sessions[idx].state = new
         switch new {
         case .waiting:
-            Notifier.shared.sessionEvent(.waiting, body: sessions[idx].title, sessionKey: sessions[idx].key)
+            Notifier.shared.sessionEvent(.waiting, session: sessions[idx])
         case .done where old == .running || old == .waiting:
-            Notifier.shared.sessionEvent(.done, body: sessions[idx].title, sessionKey: sessions[idx].key)
+            Notifier.shared.sessionEvent(.done, session: sessions[idx])
             Digest.shared.distill(sessions[idx])
         case .failed:
-            Notifier.shared.sessionEvent(.failed, body: sessions[idx].title, sessionKey: sessions[idx].key)
+            Notifier.shared.sessionEvent(.failed, session: sessions[idx])
         default:
             break
         }

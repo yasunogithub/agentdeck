@@ -107,11 +107,9 @@ final class EventServer: @unchecked Sendable {
             let target = store.sessions.first(where: { $0.key == key })
                 ?? store.sessions.first(where: { $0.state == .running || $0.state == .waiting })
                 ?? store.sessions.first
-            Notifier.shared.sessionEvent(
-                event,
-                body: target.map { "\($0.title) — 通知テスト" } ?? "テスト通知",
-                sessionKey: target?.key
-            )
+            if let target {
+                Notifier.shared.sessionEvent(event, session: target)
+            }
             return ("200 OK", "{\"ok\":true,\"session\":\"\(target?.key ?? "")\"}")
         case ("POST", "/events"):
             let decoder = JSONDecoder()

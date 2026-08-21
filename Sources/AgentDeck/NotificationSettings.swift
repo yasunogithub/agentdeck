@@ -18,6 +18,16 @@ enum NotificationEvent: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 通知タイトルの先頭に付ける絵文字 (一見で種別が分かるように)。
+    var emoji: String {
+        switch self {
+        case .waiting: return "💬"
+        case .done: return "✅"
+        case .failed: return "❌"
+        case .prMerged: return "🎉"
+        }
+    }
+
     /// 既定サウンド (NSSound 名)。
     var defaultSound: String {
         switch self {

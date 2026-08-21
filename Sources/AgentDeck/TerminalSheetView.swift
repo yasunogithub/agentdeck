@@ -287,9 +287,20 @@ struct TerminalHostView: NSViewRepresentable {
         let env = ProcessInfo.processInfo.environment
             .map { "\($0.key)=\($0.value)" } + ["TERM=xterm-256color"]
 
+        // bare ターミナルは単一のログインインタラクティブシェルを直接起動する。
+        // 以前の "zsh -l -c 'zsh -l'" はログイン初期化 (.zprofile の brew /
+        // OrbStack init 等) が二重に走り、外側でブロックされると Ctrl+C する
+        // までプロンプトが出なかった。
+        let args: [String]
+        if case .bare = mode {
+            args = ["-l"]
+        } else {
+            args = ["-l", "-c", command]
+        }
+
         view.startProcess(
             executable: "/bin/zsh",
-            args: ["-l", "-c", command],
+            args: args,
             environment: env,
             currentDirectory: SafeCwd.resolve(session.cwd) ?? FileManager.default.homeDirectoryForCurrentUser.path
         )

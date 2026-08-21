@@ -47,7 +47,11 @@ final class Notifier: Sendable {
     /// セッション状態変化の通知。イベント別 ON/OFF と静寂時間の設定を反映
     /// してから出す。userInfo にセッションキーを載せ、クリックでその
     /// セッションを開けるようにする。
-    func sessionEvent(_ event: NotificationEvent, body: String, sessionKey: String?) {
+    /// セッション状態変化の通知。イベント別 ON/OFF と静寂時間の設定を反映
+    /// してから出す。タイトルに絵文字、本文にプロジェクト/AI最終発言を
+    /// 載せて一見で内容が分かるようにする。userInfo にセッションキーを載せ、
+    /// クリックでそのセッションを開けるようにする。
+    func sessionEvent(_ event: NotificationEvent, session: AgentSession) {
         let settings = NotificationSettings.shared
         guard settings.isEnabled(event) else {
             Self.diag("通知スキップ (イベントOFF): \(event.label)")
@@ -61,18 +65,29 @@ final class Notifier: Sendable {
         Self.authState.lock()
         let authorized = Self._authorized
         Self.authState.unlock()
+
+        // リッチ表現: 絵文字 + プロジェクト/エージェント + AI最終発言スニペット
+        let snippet = (session.lastAssistant ?? "")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var bodyText = "\(session.project) ・ \(session.agent)"
+        if !snippet.isEmpty {
+            bodyText += "\n\(snippet.prefix(140))"
+        }
+        let title = "\(event.emoji) \(event.label)"
+
         if authorized == false {
             // システム通知が使えない環境 (ad-hoc 署名では macOS 26 が拒否) は
             // アプリ内バナー + サウンドで代替する。
             if !soundName.isEmpty { NSSound(named: soundName)?.play() }
             DispatchQueue.main.async {
-                ErrorCenter.shared.post("🔔 \(event.label) — \(body)", detail: sessionKey, playSound: false)
+                ErrorCenter.shared.post("🔔 \(title) — \(session.title)", detail: session.key, playSound: false)
             }
             return
         }
         var info: [String: Any] = [:]
-        if let sessionKey { info["sessionKey"] = sessionKey }
-        notify(title: event.label, body: body, sound: soundName.isEmpty ? nil : soundName, userInfo: info)
+        info["sessionKey"] = session.key
+        notify(title: title, body: "\(session.title)\n\(bodyText)", sound: soundName.isEmpty ? nil : soundName, userInfo: info)
     }
 
     func notify(title: String, body: String, sound: NSSound.Name?, userInfo: [String: Any] = [:]) {

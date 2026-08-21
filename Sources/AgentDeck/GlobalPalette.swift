@@ -14,7 +14,14 @@ enum GlobalWindowActions {
 @MainActor
 enum GlobalPaletteCatalog {
 
+    /// 5 秒のメモキャッシュ。パレット表示中の every-keystroke 再構築
+    /// (セッションソート + vault のファイル I/O) が ⌘K を重くしていたため。
+    private static var cache: (items: [PaletteItem], at: Date)?
+
     static func items() -> [PaletteItem] {
+        if let c = cache, Date().timeIntervalSince(c.at) < 5 {
+            return c.items
+        }
         var items: [PaletteItem] = []
         let store = SessionStore.shared
 
@@ -89,6 +96,7 @@ enum GlobalPaletteCatalog {
             ))
         }
 
+        cache = (items, Date())
         return items
     }
 

@@ -449,15 +449,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 terminal.interpretKeyEvents([ev])
                 return nil
             }
-            // ⌘K パレットが開いている間は、どの窓・どの firstResponder でも
-            // このキー群がパレット操作になる (ターミナル窓から開いた場合も
-            // ↑↓/⏎/Esc/⌘K が効く)。他のキーは素通し — パレットの TextField
-            // にフォーカスがあれば入力され、なければ元の挙動のまま。
+            // ⌘K パレットが開いている間はパレットを完全モーダルにする:
+            // ↑↓/⏎/Esc/⌘K はパレット操作、通常文字はクエリ入力 (フィールド
+            // エディタにフォーカスがあるとき)、⌘C/V/X/A/Z も編集中のみ許可。
+            // それ以外はすべて握り潰し — Main のボードキーや ⌘T 等が裏で
+            // 発火して「ショートカットが吸われる」のを防ぐ。
             if router.paletteOpen {
                 if flags == .command, chars == "k" {
                     self.closePaletteRestoringFocus()
                     return nil
                 }
+                let editing = fr is NSTextView || fr is NSTextField
                 if flags == [] || flags == .shift {
                     switch ev.keyCode {
                     case 53: self.closePaletteRestoringFocus(); return nil   // Esc
@@ -466,7 +468,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     case 36: self.runPaletteRestoringFocus(); return nil     // ⏎
                     default: break
                     }
+                    if editing { return ev }   // クエリへの入力
+                    return nil                 // 非編集時の平手は握り潰し
                 }
+                if flags == .command {
+                    if editing, ["c", "v", "x", "a", "z"].contains(chars) { return ev }
+                    return nil
+                }
+                return nil
             }
             // ⌘1…9 — tab/window navigation for standalone terminal windows.
             // In a system tab group the digit picks that tab; without one it
