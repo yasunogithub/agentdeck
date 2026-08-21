@@ -50,11 +50,11 @@ final class Notifier: Sendable {
     func sessionEvent(_ event: NotificationEvent, body: String, sessionKey: String?) {
         let settings = NotificationSettings.shared
         guard settings.isEnabled(event) else {
-            diag("通知スキップ (イベントOFF): \(event.label)")
+            Self.diag("通知スキップ (イベントOFF): \(event.label)")
             return
         }
         guard !settings.isQuietNow() else {
-            diag("通知スキップ (静寂時間): \(event.label)")
+            Self.diag("通知スキップ (静寂時間): \(event.label)")
             return
         }
         let soundName = settings.sound(for: event)
