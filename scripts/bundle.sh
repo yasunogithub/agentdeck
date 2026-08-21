@@ -57,8 +57,13 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # UNErrorDomain Code=1 で即拒否され、通知が一切出ない。
 # Apple Development 証明書がキーチェーンにあればそれを使い (システム通知が
 # 有効化される)、なければ ad-hoc で識別子のみ揃える。
+# Apple 発行証明書を最優先 (自己署名ではシステム通知が拒否されるため)。
 CODESIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
-  | grep '"Apple Development' | head -1 | sed -E 's/^[^"]*"[^"]*" (.*)$/\1/' || true)
+  | grep '"Apple Development' | head -1 | grep -oE '"[^"]+"' | tail -1 | tr -d '"' || true)
+if [[ -z "$CODESIGN_IDENTITY" ]]; then
+  CODESIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -oE '"[^"]+"' | head -1 | tr -d '"' || true)
+fi
 if [[ -n "$CODESIGN_IDENTITY" ]]; then
   echo "codesign: $CODESIGN_IDENTITY"
   codesign --force --sign "$CODESIGN_IDENTITY" --identifier dev.agentdeck.app "$APP"
