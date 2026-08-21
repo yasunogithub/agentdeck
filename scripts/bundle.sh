@@ -54,9 +54,17 @@ PLIST
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 # UNUserNotificationCenter は署名識別子と CFBundleIdentifier の一致を見る。
 # linker-signed のまま (Identifier=AgentDeck) だと requestAuthorization が
-# UNErrorDomain Code=1 で即拒否され、通知が一切出ない。ad-hoc 再署名で
-# 識別子を揃える。
-codesign --force --sign - --identifier dev.agentdeck.app "$APP" >/dev/null 2>&1 || true
+# UNErrorDomain Code=1 で即拒否され、通知が一切出ない。
+# Apple Development 証明書がキーチェーンにあればそれを使い (システム通知が
+# 有効化される)、なければ ad-hoc で識別子のみ揃える。
+CODESIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep '"Apple Development' | head -1 | sed -E 's/^[^"]*"[^"]*" (.*)$/\1/' || true)
+if [[ -n "$CODESIGN_IDENTITY" ]]; then
+  echo "codesign: $CODESIGN_IDENTITY"
+  codesign --force --sign "$CODESIGN_IDENTITY" --identifier dev.agentdeck.app "$APP"
+else
+  codesign --force --sign - --identifier dev.agentdeck.app "$APP" >/dev/null 2>&1 || true
+fi
 echo "built $APP"
 
 # 毎ビルド /Applications へ同期 (起動中はコピー失敗するため先に終了させる)
