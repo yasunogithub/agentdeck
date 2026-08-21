@@ -52,6 +52,10 @@ final class UISettings: ObservableObject, @unchecked Sendable {
     @Published var autoArchiveDoneHours: Double {
         didSet { UserDefaults.standard.set(autoArchiveDoneHours, forKey: "ui.autoArchiveDoneHours") }
     }
+    /// トグル OFF→ON のときに戻る直近の時間設定 (0 にならない)。
+    @Published var autoArchiveLastHours: Double {
+        didSet { UserDefaults.standard.set(autoArchiveLastHours, forKey: "ui.autoArchiveLastHours") }
+    }
     /// ターミナルウィンドウ上部ヘッダーのフォントペア: 英字(欧文)用と
     /// 日本語用を別々に指定できる。空 = システム標準。
     @Published var headerLatinFont: String {
@@ -186,7 +190,27 @@ final class UISettings: ObservableObject, @unchecked Sendable {
         cardHeight = min(max(d.object(forKey: "ui.cardHeight") as? Double ?? 76, 44), 160)
         mainZoom = d.object(forKey: "ui.mainZoom") as? Int ?? 0
         terminalZoom = d.object(forKey: "ui.terminalZoom") as? Int ?? 0
-        autoArchiveDoneHours = d.object(forKey: "ui.autoArchiveDoneHours") as? Double ?? 2
+        // 自動アーカイブ: 新デフォルトは 24h。旧デフォルト 2h は移行、
+        // 明示変更済み (2 以外の正数) と意図的 OFF (0) は保持。
+        let storedHours = d.object(forKey: "ui.autoArchiveDoneHours") as? Double
+        switch storedHours {
+        case nil:
+            autoArchiveDoneHours = 24
+            UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveDoneHours")
+        case 0:
+            autoArchiveDoneHours = 0
+            autoArchiveLastHours = 24
+            UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveLastHours")
+        case 2:
+            autoArchiveDoneHours = 24
+            UserDefaults.standard.set(24.0, forKey: "ui.autoArchiveDoneHours")
+        default:
+            autoArchiveDoneHours = storedHours ?? 24
+        }
+        if d.object(forKey: "ui.autoArchiveLastHours") == nil {
+            autoArchiveLastHours = max(autoArchiveDoneHours, 24)
+            UserDefaults.standard.set(autoArchiveLastHours, forKey: "ui.autoArchiveLastHours")
+        }
         headerLatinFont = d.string(forKey: "ui.headerLatinFont") ?? ""
         headerJapaneseFont = d.string(forKey: "ui.headerJapaneseFont") ?? ""
         detailTypeIndex = min(max(d.object(forKey: "ui.detailTypeIndex") as? Int ?? 3, 0), Self.typeSizes.count - 1)
@@ -395,14 +419,22 @@ struct SettingsView: View {
             Section("自動アーカイブ") {
                 Toggle("完了・アイドルを自動でアーカイブ", isOn: Binding(
                     get: { ui.autoArchiveEnabled },
-                    set: { ui.autoArchiveDoneHours = $0 ? 2 : 0 }
+                    set: { on in
+                        ui.autoArchiveDoneHours = on ? (ui.autoArchiveLastHours > 0 ? ui.autoArchiveLastHours : 24) : 0
+                    }
                 ))
                 if ui.autoArchiveEnabled {
-                    LabeledContent("ボードに残す時間 \(Int(ui.autoArchiveDoneHours)) 時間") {
-                        Slider(value: $ui.autoArchiveDoneHours, in: 1...12, step: 1)
+                    LabeledContent("完了から \(Int(ui.autoArchiveDoneHours)) 時間後") {
+                        Slider(value: Binding(
+                            get: { ui.autoArchiveDoneHours },
+                            set: { v in
+                                ui.autoArchiveDoneHours = v
+                                if v > 0 { ui.autoArchiveLastHours = v }
+                            }
+                        ), in: 1...72, step: 1)
                     }
                 }
-                Text("完了/アイドルになってから設定時間が経過するとサイドバーのアーカイブへ自動で移動します（ボードが雑多になるのを防ぎます）。")
+                Text("完了/アイドルになってから設定時間 (1〜72時間) が経過するとサイドバーのアーカイブへ自動で移動します。既定は 24 時間です。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
