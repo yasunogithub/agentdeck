@@ -5,8 +5,6 @@ the local transcript directories of multiple coding agents, shows every
 session as a card on a board, and lets you jump into a live terminal —
 resume, tmux attach, or hand the work off to another agent.
 
-![board](docs/screenshots/agentdeck-board-opencode2-qwen-2026-08-05.png)
-
 ## What it does
 
 - **Session board** — cards for every local session from Claude Code,
@@ -19,7 +17,7 @@ resume, tmux attach, or hand the work off to another agent.
   (`handoff:` specs), copy a handoff brief to the clipboard.
 - **MCP server** — exposes status / summary / session-id / reminders over
   MCP so editors and other agents can query AgentDeck (see
-  [docs/mcp.md](docs/mcp.md)).
+  [MCP.md](MCP.md)).
 - **Extras** — dictation, file-manager style input suggestions, artifact
   browser with HTML preview, notifications, idle archiving, orphan process
   reaping, single-instance guard.
@@ -44,7 +42,7 @@ open AgentDeck.app
 ```
 Sources/AgentDeck/   App source (SwiftUI board, terminal, services)
 scripts/             bundle.sh, icon generation
-docs/                design notes, MCP docs, dated work reports
+PROMPT.md            self-contained brief to rebuild the app with an AI agent
 ```
 
 ## Notes
@@ -62,8 +60,7 @@ from scratch? Hand it [PROMPT.md](PROMPT.md) — a self-contained build brief.
 
 ## Docs
 
-- [docs/mcp.md](docs/mcp.md) — MCP server tools
-- [docs/reports/](docs/reports/) — dated implementation reports
+- [MCP.md](MCP.md) — MCP server tools
 
 ## License
 

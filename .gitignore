@@ -20,3 +20,6 @@ opencode.json
 # Logs
 *.log
 nohup.out
+
+# Local work logs (kept out of the repo)
+docs/
