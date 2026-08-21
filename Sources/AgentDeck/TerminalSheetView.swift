@@ -27,6 +27,8 @@ struct TerminalSheetView: View {
     var showHeader = true
     @StateObject private var context = TerminalContext()
     @Environment(\.dismiss) private var dismiss
+    /// bare ターミナルの cwd 変化を窓タイトルへ反映するコールバック。
+    var onLiveTitle: ((String) -> Void)? = nil
 
     static func modeLabel(_ mode: TerminalMode) -> String {
         switch mode {
@@ -46,7 +48,7 @@ struct TerminalSheetView: View {
                 Divider()
             }
             ZStack(alignment: .bottom) {
-                TerminalHostView(session: session, mode: mode, embedded: embedded, context: context)
+                TerminalHostView(session: session, mode: mode, embedded: embedded, context: context, onLiveTitle: onLiveTitle)
                 if !context.suggestions.isEmpty {
                     SuggestionBar(context: context)
                         .padding(6)
@@ -265,6 +267,7 @@ struct TerminalHostView: NSViewRepresentable {
     var mode: TerminalMode = .resume
     var embedded = false
     var context: TerminalContext? = nil
+    var onLiveTitle: ((String) -> Void)? = nil
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = TranslucentTerminalView(frame: NSRect(x: 0, y: 0, width: 1000, height: 600))
@@ -290,6 +293,11 @@ struct TerminalHostView: NSViewRepresentable {
             environment: env,
             currentDirectory: SafeCwd.resolve(session.cwd) ?? FileManager.default.homeDirectoryForCurrentUser.path
         )
+        // bare ターミナルは cwd を追跡して窓タイトルをライブ更新する
+        // (「新規ターミナル」のまま見分けがつかないのを防ぐ)。
+        if case .bare = mode {
+            context.coordinator.startCwdPolling(view: view, callback: onLiveTitle)
+        }
         return view
     }
 
@@ -416,10 +424,48 @@ struct TerminalHostView: NSViewRepresentable {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
+    final class Coordinator: NSObject, LocalProcessTerminalViewDelegate, @unchecked Sendable {
         func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         func processTerminated(source: TerminalView, exitCode: Int32?) {}
+
+        private var cwdTimer: Timer?
+        private var lastCwd: String?
+        var onLiveTitle: ((String) -> Void)?
+
+        /// bare ターミナル用: PTY 子プロセスの cwd を 3 秒ごとに取得し、
+        /// 変わっていればコールバックで窓タイトルを更新する。シェルが
+        /// OSC タイトルを出さなくても効く (proc_pidinfo で直接取得)。
+        func startCwdPolling(view: LocalProcessTerminalView, callback: ((String) -> Void)?) {
+            onLiveTitle = callback
+            guard cwdTimer == nil else { return }
+            let timer = Timer(timeInterval: 3, repeats: true) { [weak self, weak view] _ in
+                guard let view, view.window != nil, view.process?.running == true else { return }
+                let path = Self.cwd(of: view.process?.shellPid ?? 0) ?? ""
+                guard !path.isEmpty, path != self?.lastCwd else { return }
+                self?.lastCwd = path
+                let name = (path as NSString).lastPathComponent
+                let title = "zsh — \(name.isEmpty ? path : name)"
+                DispatchQueue.main.async { [weak self] in
+                    self?.onLiveTitle?(title)
+                }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            cwdTimer = timer
+        }
+
+        /// 子プロセスのカレントディレクトリ (PROC_PIDVNODEPATHINFO)。
+        static func cwd(of pid: pid_t) -> String? {
+            var vpi = proc_vnodepathinfo()
+            let size = MemoryLayout<proc_vnodepathinfo>.size
+            let result = withUnsafeMutableBytes(of: &vpi) { raw -> Int32 in
+                proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, raw.baseAddress, Int32(size))
+            }
+            guard result > 0 else { return nil }
+            return withUnsafeBytes(of: &vpi.pvi_cdir.vip_path) { raw in
+                String(cString: raw.baseAddress!.assumingMemoryBound(to: CChar.self))
+            }
+        }
     }
 }

@@ -115,6 +115,8 @@ struct TerminalWindowRoot: View {
     // クリック不要でそのまま入力できるよう、このウィンドウがキー窓になった
     // タイミングでターミナルビューを自動フォーカスする。
     @State private var nsWindow: NSWindow?
+    /// bare ターミナルの cwd 追跡タイトル (nil なら通常のメタタイトル)。
+    @State private var liveCwdTitle: String?
 
     private var key: String {
         var s = spec
@@ -170,8 +172,8 @@ struct TerminalWindowRoot: View {
     var body: some View {
         Group {
             if let session {
-                TerminalSheetView(session: session, mode: mode)
-                    .navigationTitle(windowTitle(for: session))
+                TerminalSheetView(session: session, mode: mode, onLiveTitle: { liveCwdTitle = $0 })
+                    .navigationTitle(liveCwdTitle ?? windowTitle(for: session))
             } else {
                 Text("セッションが見つかりません: \(key)")
                     .foregroundStyle(.secondary)
